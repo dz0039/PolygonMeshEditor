@@ -1,8 +1,11 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEditor;
-using System.Linq;
+
+// TODO: ugly toggle
+// TODO: allow disable up/down faces
 
 [ExecuteInEditMode]
 [RequireComponent(typeof(MeshFilter))]
@@ -12,6 +15,7 @@ public class PolygonMesh : MonoBehaviour {
     public List<Vector3> points;
     public float y = 0f;
     public bool showMesh = false;
+    public bool enableCollidor = false;
     public bool enableHeight = false;
     [ConditionalHide("enableHeight", true)]
     public float height = 1.0f;
@@ -19,12 +23,15 @@ public class PolygonMesh : MonoBehaviour {
 
     MeshRenderer meshRenderer;
     MeshFilter meshFilter;
+    MeshCollider meshCollider;
+    Vector3[] localVerts;
+    int[] tris;
 
     void Start() {
         meshFilter = gameObject.GetComponent<MeshFilter>();
         meshRenderer = gameObject.GetComponent<MeshRenderer>();
-        UpdateShowMesh();
-        UpdateMesh();
+        meshCollider = gameObject.GetComponent<MeshCollider>();
+        ToggleMeshRender();
         UpdatePointsPosition();
     }
 
@@ -33,7 +40,7 @@ public class PolygonMesh : MonoBehaviour {
         UpdatePointsPosition();
     }
 
-    public void UpdateShowMesh() {
+    public void ToggleMeshRender() {
         if (!showMesh) {
             if (meshRenderer != null) DestroyImmediate(meshRenderer);
             meshRenderer = null;
@@ -46,33 +53,61 @@ public class PolygonMesh : MonoBehaviour {
         }
     }
 
-    public void UpdateMesh() {
-        Mesh mesh = new Mesh();
-        Vector2[] points2 = points.Select(p => new Vector2(p.x, p.z)).ToArray();
-        int[] tris = new Triangulator(points2).Triangulate();
-        if (!enableHeight) {
-            mesh.vertices = points.Select(p => transform.InverseTransformPoint(p)).ToArray();
-            mesh.triangles = tris;
+    public void ToggleMeshCollider() {
+        if (!enableCollidor) {
+            if (meshCollider != null) DestroyImmediate(meshCollider);
+            meshCollider = null;
         } else {
-
+            if (meshCollider == null) {
+                gameObject.AddComponent<MeshCollider>();
+                meshCollider = gameObject.GetComponent<MeshCollider>();
+            }
+            UpdatePointsPosition();
         }
+    }
 
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
-        meshFilter.mesh = mesh;
+    public void UpdateMesh() {
+        localVerts = points.Select(p => transform.InverseTransformPoint(p)).ToArray();
+        Vector2[] points2 = localVerts.Select(p => new Vector2(p.x, p.z)).ToArray();
+        tris = new Triangulator(points2).Triangulate();
+
+        if (enableHeight) {
+            int count = points.Count;
+            localVerts = localVerts.Concat(localVerts).ToArray();
+            var trisList = tris.Concat(tris.Select(i => i + count)).ToList();
+            for (int i = 0; i < count; i++) {
+                trisList.Add(i + count);
+                trisList.Add((i + 1) % count);
+                trisList.Add(i);
+
+                trisList.Add(((i + 1) % count + count) % (2 * count));
+                trisList.Add((i + 1) % count);
+                trisList.Add(i + count);
+            }
+            tris = trisList.ToArray();
+        }
+        UpdatePointsPosition();
     }
 
     void UpdatePointsPosition() {
-        if (!enableHeight) {
-            points = points.Select(p => new Vector3(p.x, y, p.z)).ToList();
-        } else {
-            points = points.GetRange(0, points.Count / 2)
-                        .Select(p => new Vector3(p.x, y, p.z))
-                        .Concat(
-                            points.GetRange(points.Count / 2, points.Count / 2)
-                                .Select(p => new Vector3(p.x, y + height, p.z))
-                        )
-                        .ToList();
+        points = points.Select(p => new Vector3(p.x, y, p.z)).ToList();
+        var localY = transform.InverseTransformPoint(new Vector3(0, y, 0)).y;
+
+        if (localVerts == null || localVerts.Length == 0) return;
+        for (int i = 0; i < points.Count; i++) {
+            localVerts[i] = new Vector3(localVerts[i].x, localY, localVerts[i].z);
         }
+        if (enableHeight && localVerts.Length == points.Count * 2) {
+            for (int i = points.Count; i < points.Count * 2; i++) {
+                localVerts[i] = new Vector3(localVerts[i].x, localY + height, localVerts[i].z);
+            }
+        }
+
+        Mesh mesh = new Mesh();
+        mesh.vertices = localVerts;
+        mesh.triangles = tris;
+        mesh.RecalculateNormals();
+        meshFilter.mesh = mesh;
+        if (meshCollider != null) meshCollider.sharedMesh = mesh;
     }
 }

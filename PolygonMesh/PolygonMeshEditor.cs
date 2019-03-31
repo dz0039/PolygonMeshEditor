@@ -1,8 +1,8 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEditor;
-using System.Linq;
 
 /* 
     Create Polygon mesh with path
@@ -15,21 +15,30 @@ public class PolygonMeshEditor : Editor {
     /* ugly fields*/
     SerializedProperty showMeshProperty;
     SerializedProperty enableHeightProperty;
+    SerializedProperty enableCollidorProperty;
     bool oldShowMesh;
     bool oldEnableHeight;
+    bool oldEnableCollidor;
 
     public override void OnInspectorGUI() {
         EditorGUILayout.HelpBox("Left: Add\nRight: Remove", MessageType.Info);
+        if (GUILayout.Button("refresh mesh")) {
+            polygon.UpdateMesh();
+        }
         DrawDefaultInspector();
 
         serializedObject.Update();
         if (oldShowMesh != showMeshProperty.boolValue) {
             oldShowMesh = showMeshProperty.boolValue;
-            polygon.UpdateShowMesh();
+            polygon.ToggleMeshRender();
         }
         if (oldEnableHeight != enableHeightProperty.boolValue) {
             oldEnableHeight = enableHeightProperty.boolValue;
             polygon.UpdateMesh();
+        }
+        if (oldEnableCollidor != enableCollidorProperty.boolValue) {
+            oldEnableCollidor = enableCollidorProperty.boolValue;
+            polygon.ToggleMeshCollider();
         }
     }
 
@@ -137,6 +146,8 @@ public class PolygonMeshEditor : Editor {
         oldShowMesh = showMeshProperty.boolValue;
         enableHeightProperty = serializedObject.FindProperty("enableHeight");
         oldEnableHeight = enableHeightProperty.boolValue;
+        enableCollidorProperty = serializedObject.FindProperty("enableCollidor");
+        oldEnableCollidor = enableCollidorProperty.boolValue;
 
         polygon = target as PolygonMesh;
         info = new SelectionInfo();
