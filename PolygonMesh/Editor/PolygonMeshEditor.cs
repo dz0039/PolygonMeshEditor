@@ -21,7 +21,7 @@ public class PolygonMeshEditor : Editor {
     bool oldEnableCollidor;
 
     public override void OnInspectorGUI() {
-        EditorGUILayout.HelpBox("Left: Add\nRight: Remove", MessageType.Info);
+        EditorGUILayout.HelpBox("Left: Add\nRight: Remove\nEnable Edit to edit", MessageType.Info);
         if (GUILayout.Button("refresh mesh")) {
             polygon.UpdateMesh();
         }
@@ -45,11 +45,15 @@ public class PolygonMeshEditor : Editor {
     void OnSceneGUI() {
         Event e = Event.current;
         if (e.type == EventType.Layout) {
-
             // focus control
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
         } else if (e.type == EventType.Repaint) {
             for (int i = 0; i < polygon.points.Count; i++) {
+                // RECALC DISK_RAD
+                Ray cameraRay = HandleUtility.GUIPointToWorldRay(new Vector2(0.5f, 0.5f));
+                float cameraDst = cameraRay.origin.y - polygon.y;
+                diskRadius = Mathf.Clamp(Mathf.Pow(cameraDst / 25, 2), 0.2f, 2f);
+
                 // LINE
                 Vector3 nextPoint = polygon.points[(i + 1) % polygon.points.Count];
                 Handles.color = (info.isHoveringLine && info.lineId == i) ? Color.red : Color.green;
@@ -64,7 +68,7 @@ public class PolygonMeshEditor : Editor {
                 Handles.DrawSolidDisc(polygon.points[i], Vector3.up, diskRadius);
             }
         } else {
-            HandleMouseInputs(e);
+            if (polygon.enableEdit) HandleMouseInputs(e);
         }
     }
 
@@ -77,10 +81,6 @@ public class PolygonMeshEditor : Editor {
         // pos+dir*dst=point, dst = (h-pos.y)/dir.y
         float dst = (polygon.y - mouseRay.origin.y) / mouseRay.direction.y;
         Vector3 pointPos = mouseRay.origin + mouseRay.direction * dst;
-        // update diskrad
-        Ray cameraRay = HandleUtility.GUIPointToWorldRay(new Vector2(0.5f, 0.5f));
-        float cameraDst = cameraRay.origin.y - polygon.y;
-        diskRadius = Mathf.Clamp(Mathf.Pow(cameraDst / 25, 2), 0.2f, 2f);
         // update hovering
         info.isHoveringLine = false;
         if (!info.isSelectingPoint) {

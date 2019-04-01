@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System;
 using UnityEngine;
 using UnityEditor;
 
@@ -10,6 +11,8 @@ using UnityEditor;
 [ExecuteInEditMode]
 [RequireComponent(typeof(MeshFilter))]
 public class PolygonMesh : MonoBehaviour {
+    [Header("Enable Editing")]
+    public bool enableEdit = false;
     [HideInInspector]
     [SerializeField]
     public List<Vector3> points = new List<Vector3>();
@@ -28,13 +31,23 @@ public class PolygonMesh : MonoBehaviour {
     Vector3[] localVerts;
     int[] tris;
 
+    [HideInInspector]
+    [SerializeField]
+    public List<Action> updateMeshPerfromed = new List<Action>();
+    
+    public float localY {
+        get {
+            return transform.InverseTransformPoint(new Vector3(0, y, 0)).y;
+        }
+    }
+
     void Start() {
-        meshFilter = gameObject.GetComponent<MeshFilter>();
         ToggleMeshRender();
         UpdatePointsPosition();
     }
 
     void OnValidate() {
+        if (meshFilter == null) meshFilter = gameObject.GetComponent<MeshFilter>();
         // y or height
         UpdatePointsPosition();
     }
@@ -68,9 +81,12 @@ public class PolygonMesh : MonoBehaviour {
     }
 
     public void UpdateMesh() {
+
         localVerts = points.Select(p => transform.InverseTransformPoint(p)).ToArray();
         Vector2[] points2 = localVerts.Select(p => new Vector2(p.x, p.z)).ToArray();
         tris = new Triangulator(points2).Triangulate();
+        // LOCAL POSITION
+        transform.position = points.First();
 
         if (enableHeight) {
             int count = points.Count;
@@ -88,11 +104,12 @@ public class PolygonMesh : MonoBehaviour {
             tris = trisList.ToArray();
         }
         UpdatePointsPosition();
+        // ACTION LIST
+        foreach (Action a in updateMeshPerfromed) a();
     }
 
     void UpdatePointsPosition() {
         points = points.Select(p => new Vector3(p.x, y, p.z)).ToList();
-        var localY = transform.InverseTransformPoint(new Vector3(0, y, 0)).y;
 
         if (localVerts == null || localVerts.Length == 0) return;
         for (int i = 0; i < points.Count; i++) {

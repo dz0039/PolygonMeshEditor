@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -8,6 +9,8 @@ using UnityEditor;
 [ExecuteInEditMode]
 [RequireComponent(typeof(PolygonMesh))]
 public class PolygonMeshSpawner : MonoBehaviour {
+    public bool enableSeed = false;
+    [ConditionalHide("enableSeed", true)]
     public int seed = 42;
     [Header("Settings")]
     public int size = 1;
@@ -28,6 +31,7 @@ public class PolygonMeshSpawner : MonoBehaviour {
     /* fields */
     PolygonMesh polygon;
     const int MAX_SPAWN_TRIES = 50;
+    float globalMinDistance = 0f;
 
     void Start() {
         polygon = gameObject.GetComponent<PolygonMesh>();
@@ -50,15 +54,22 @@ public class PolygonMeshSpawner : MonoBehaviour {
                 UpdateInstance(ref trans, Int32.Parse(trans.name));
             }
         }
+        // UPDATES
+        globalMinDistance = minDistance.Min();
     }
 
     public void Spawn() {
+        if (!polygon.updateMeshPerfromed.Contains(Spawn)) polygon.updateMeshPerfromed.Add(Spawn);
+        if (polygon.enableHeight) {
+            Debug.LogError("[PolygonMeshSpawner] Cannot Spawn wtih height enabled");
+            return;
+        }
         int ct = transform.childCount;
         for (int i = 0; i < ct; i++) {
             GameObject.DestroyImmediate(transform.GetChild(0).gameObject);
         }
 
-        UnityEngine.Random.InitState(seed);
+        UnityEngine.Random.InitState(enableSeed ? seed : (int)Time.time);
         for (int i = 0; i < size; i++)
             for (int j = 0; j < instanceCount[i]; j++)
                 SpawnElement(i);
@@ -66,8 +77,6 @@ public class PolygonMeshSpawner : MonoBehaviour {
 
     void SpawnElement(int elemId) {
         if (prefabs[elemId] == null) return;
-        polygon.enableHeight = false;
-        polygon.UpdateMesh();
         int[] tris = polygon.meshFilter.sharedMesh.triangles;
         Vector3[] verts = polygon.meshFilter.sharedMesh.vertices;
         // atleast 1 triangle
@@ -101,15 +110,16 @@ public class PolygonMeshSpawner : MonoBehaviour {
         trans.localScale = newScale;
 
         // Y OFFSET
-        trans.position = new Vector3(trans.position.x, trans.position.y + yOffsets[elemId], trans.position.z);
+        trans.position = new Vector3(trans.position.x, polygon.localY + transform.position.y + yOffsets[elemId], trans.position.z);
     }
 
     bool isValidSpawnPos(ref Vector3 pos, int elemId) {
         int ct = transform.childCount;
         for (int i = 0; i < ct; i++) {
             var trans = transform.GetChild(i);
-            if (elemId == Int32.Parse(trans.name) &&
-                Vector3.Distance(pos, trans.position) < minDistance[elemId])
+            if ((elemId == Int32.Parse(trans.name) &&
+                Vector3.Distance(pos, trans.position) < minDistance[elemId]) ||
+                Vector3.Distance(pos, trans.position) < globalMinDistance)
                 return false;
         }
         return true;
@@ -138,6 +148,7 @@ public class PolygonMeshSpawner : MonoBehaviour {
             }
         }
         // GET RAND POINT in TRI
+        triId *= 3;
         float r1 = UnityEngine.Random.Range(0f, 1f);
         float r2 = UnityEngine.Random.Range(0f, 1f);
         float px = (1 - Mathf.Sqrt(r1)) * verts[tris[triId]].x +
