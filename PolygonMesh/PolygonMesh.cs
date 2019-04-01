@@ -12,7 +12,7 @@ using UnityEditor;
 public class PolygonMesh : MonoBehaviour {
     [HideInInspector]
     [SerializeField]
-    public List<Vector3> points;
+    public List<Vector3> points = new List<Vector3>();
     public float y = 0f;
     public bool showMesh = false;
     public bool enableCollidor = false;
@@ -22,15 +22,14 @@ public class PolygonMesh : MonoBehaviour {
     public Material material;
 
     MeshRenderer meshRenderer;
-    MeshFilter meshFilter;
+    [HideInInspector]
+    public MeshFilter meshFilter;
     MeshCollider meshCollider;
     Vector3[] localVerts;
     int[] tris;
 
     void Start() {
         meshFilter = gameObject.GetComponent<MeshFilter>();
-        meshRenderer = gameObject.GetComponent<MeshRenderer>();
-        meshCollider = gameObject.GetComponent<MeshCollider>();
         ToggleMeshRender();
         UpdatePointsPosition();
     }
@@ -41,6 +40,7 @@ public class PolygonMesh : MonoBehaviour {
     }
 
     public void ToggleMeshRender() {
+        meshRenderer = gameObject.GetComponent<MeshRenderer>();
         if (!showMesh) {
             if (meshRenderer != null) DestroyImmediate(meshRenderer);
             meshRenderer = null;
@@ -54,6 +54,7 @@ public class PolygonMesh : MonoBehaviour {
     }
 
     public void ToggleMeshCollider() {
+        meshCollider = gameObject.GetComponent<MeshCollider>();
         if (!enableCollidor) {
             if (meshCollider != null) DestroyImmediate(meshCollider);
             meshCollider = null;
