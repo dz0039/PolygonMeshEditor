@@ -12,14 +12,17 @@ public class PolygonMeshSpawner : MonoBehaviour {
     public bool enableSeed = false;
     [ConditionalHide("enableSeed", true)]
     public int seed = 42;
-    [Header("Settings")]
-    public int size = 1;
+    [Header("Global Settings")]
+    public int globalSize = 1;
+    [SerializeField] private Vector3 globalScale = Vector3.one;
+    private Vector3 oldScale = Vector3.one;
     int oldSize = 1;
+    [Header("Settings")]
     public GameObject[] prefabs = new GameObject[1];
     [SerializeField]
     public int[] instanceCount = new int[1];
     [SerializeField]
-    public Vector3[] scales = new Vector3[1];
+    public Vector3[] scales = new Vector3[1] { Vector3.one };
     [Header("Optional Settings")]
     [SerializeField]
     public Vector3[] scaleRanges = new Vector3[1];
@@ -39,14 +42,26 @@ public class PolygonMeshSpawner : MonoBehaviour {
 
     void OnValidate() {
         // update all fields
-        if (size != oldSize) {
-            oldSize = size;
-            Array.Resize<GameObject>(ref prefabs, size);
-            Array.Resize<int>(ref instanceCount, size);
-            Array.Resize<Vector3>(ref scales, size);
-            Array.Resize<Vector3>(ref scaleRanges, size);
-            Array.Resize<float>(ref yOffsets, size);
-            Array.Resize<float>(ref minDistance, size);
+        if (globalSize != oldSize) {
+            Array.Resize<GameObject>(ref prefabs, globalSize);
+            Array.Resize<int>(ref instanceCount, globalSize);
+            Array.Resize<Vector3>(ref scales, globalSize);
+            Array.Resize<Vector3>(ref scaleRanges, globalSize);
+            Array.Resize<float>(ref yOffsets, globalSize);
+            Array.Resize<float>(ref minDistance, globalSize);
+            for (int i = oldSize; i < globalSize; i++) {
+                scales[i] = globalScale;
+                instanceCount[i] = instanceCount[oldSize - 1];
+            }
+            oldSize = globalSize;
+        } else if (globalScale != oldScale) {
+            scales = Enumerable.Repeat(globalScale, globalSize).ToArray();
+            oldScale = globalScale;
+            int ct = transform.childCount;
+            for (int i = 0; i < ct; i++) {
+                var trans = transform.GetChild(i);
+                UpdateInstance(ref trans, Int32.Parse(trans.name));
+            }
         } else {
             int ct = transform.childCount;
             for (int i = 0; i < ct; i++) {
@@ -70,7 +85,7 @@ public class PolygonMeshSpawner : MonoBehaviour {
         }
 
         UnityEngine.Random.InitState(enableSeed ? seed : (int)Time.time);
-        for (int i = 0; i < size; i++)
+        for (int i = 0; i < globalSize; i++)
             for (int j = 0; j < instanceCount[i]; j++)
                 SpawnElement(i);
     }
@@ -101,7 +116,7 @@ public class PolygonMeshSpawner : MonoBehaviour {
     }
 
     void UpdateInstance(ref Transform trans, int elemId) {
-        if (elemId >= size) return;
+        if (elemId >= globalSize) return;
         // SCALE
         Vector3 newScale = scales[elemId];
         newScale.x += UnityEngine.Random.Range(-scaleRanges[elemId].x, scaleRanges[elemId].x);
@@ -165,7 +180,7 @@ public class PolygonMeshSpawner : MonoBehaviour {
 public class PolygonMeshSpawnerEditor : Editor {
     PolygonMeshSpawner spawner;
     public override void OnInspectorGUI() {
-        EditorGUILayout.HelpBox("All Childern will be destroyed upon spawn", MessageType.Warning);
+        EditorGUILayout.HelpBox("All Childern will be destroyed upon spawn\n\nPlease change Number of Prefabs only via Global Size", MessageType.Warning);
         if (GUILayout.Button("Spawn")) spawner.Spawn();
         DrawDefaultInspector();
     }
